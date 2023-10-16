@@ -1,7 +1,6 @@
 using UnityEditor;
 using UnityEngine;
 using System.IO;
-using System.Linq;
 
 public class Pixito : EditorWindow
 {
@@ -62,12 +61,8 @@ public class Pixito : EditorWindow
         }
         else
             GUI.Label(new Rect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height), manualText, GUI.skin.textArea);
-        
-        ShowUI(canvasRect);
 
-        if (isEyedropperActive)
-            Eyedrop(canvasRect);
-        
+        ShowUI(canvasRect);
     }
     private Rect CalculateCanvasRect()
     {
@@ -92,60 +87,62 @@ public class Pixito : EditorWindow
         {
             case EventType.MouseDrag:
             case EventType.MouseDown:
-                if (!isEyedropperActive)                
-                    PixelDrawing(e, canvasRect, mouseY);                
+                if (!isEyedropperActive)
+                    PixelDrawing(e, canvasRect);
+                else if (isEyedropperActive)
+                    Eyedrop(e, canvasRect);
                 break;
         }
     }
-    private void PixelDrawing(Event e, Rect canvasRect, float mouseY)
+    private void PixelDrawing(Event e, Rect canvasRect)
     {
         int x = (int)((e.mousePosition.x - canvasRect.x) / dimension);
-        int y = (int)(mouseY / dimension);
+        int y = (int)(InvertYAxisMouse(canvasRect, e.mousePosition.y) / dimension);
+        int index = x + (y * canvasWidth);
+
         if (canvasRect.Contains(e.mousePosition))
         {
-            if (x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight)
-            {
-                int index = x + (y * canvasWidth);
-                Color32[] previousPixels = (Color32[])pixels.Clone();
+            Color32[] previousPixels = (Color32[])pixels.Clone();
 
-                if (isErasing)
-                    pixels[index] = Color.clear;               
-                else if (isDrawing)
-                    pixels[index] = selectedColor;
-                
-                canvas.SetPixels32(pixels);
-                canvas.Apply();
-                GUI.changed = true;
-            }
+            if (isErasing)
+                pixels[index] = Color.clear;
+            else if (isDrawing)
+                pixels[index] = selectedColor;
+
+            canvas.SetPixels32(pixels);
+            canvas.Apply();
+            GUI.changed = true;
         }
     }
-    private void Eyedrop(Rect canvasRect)
+    private void Eyedrop(Event e, Rect canvasRect)
     {
-        Event e = Event.current;
+        int x = (int)((e.mousePosition.x - canvasRect.x) / dimension);
+        int y = (int)(InvertYAxisMouse(canvasRect, e.mousePosition.y) / dimension);
+        int index = x + (y * canvasWidth);
 
-        if (e.type == EventType.MouseDown && canvasRect.Contains(e.mousePosition))
+        if (canvasRect.Contains(e.mousePosition))
         {
-            int x = (int)((e.mousePosition.x - canvasRect.x) / dimension);
-            int y = (int)(InvertYAxisMouse(canvasRect, e.mousePosition.y) / dimension);
-
-            if (x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight)
-            {
-                int index = x + (y * canvasWidth);
-                if (pixels[index] == Color.clear || pixels[index].a < 0.05)
-                    return;
-                else
-                    selectedColor = pixels[index];
-            }
+            if (pixels[index] == Color.clear || pixels[index].a < 0.05)
+                return;
+            else
+                selectedColor = pixels[index];
+            GUI.changed = true;
         }
     }
     private void DrawGrid(Rect canvasRect)
     {
         GUI.DrawTexture(canvasRect, canvas);
-        for (int x = 0; x <= canvasWidth; x++)        
-            Handles.DrawLine(new Vector2(canvasRect.x + x * dimension - 1, canvasRect.y), new Vector2(canvasRect.x + x * dimension, canvasRect.y + canvasRect.height));
-        
-        for (int y = 0; y <= canvasHeight; y++)        
-            Handles.DrawLine(new Vector2(canvasRect.x, canvasRect.y + y * dimension), new Vector2(canvasRect.x + canvasRect.width, canvasRect.y + y * dimension));       
+        for (int x = 0; x <= canvasWidth; x++)
+        {
+            float xPos = canvasRect.x + x * dimension;
+            Handles.DrawLine(new Vector2(xPos, canvasRect.y), new Vector2(xPos, canvasRect.y + canvasRect.height));
+        }
+
+        for (int y = 0; y <= canvasHeight; y++)
+        {
+            float yPos = canvasRect.y + y * dimension;
+            Handles.DrawLine(new Vector2(canvasRect.x, yPos), new Vector2(canvasRect.x + canvasRect.width, yPos));
+        }
     }
     private void ShowUI(Rect canvasRect)
     {
@@ -155,11 +152,11 @@ public class Pixito : EditorWindow
 
         GUI.backgroundColor = Color.grey;
 
-        if (isDrawing == true &&  isErasing == false && isEyedropperActive == false)
-            GUI.backgroundColor = Color.blue;      
+        if (isDrawing == true && isErasing == false && isEyedropperActive == false)
+            GUI.backgroundColor = Color.blue;
         else
             GUI.backgroundColor = Color.grey;
-        
+
         if (GUI.Button(new Rect(10, (position.height / 2) - 200, 55, 55), "Brush"))
         {
             isDrawing = true;
@@ -172,7 +169,7 @@ public class Pixito : EditorWindow
         #region eraser
 
         if (isDrawing == false && isErasing == true && isEyedropperActive == false)
-            GUI.backgroundColor = Color.blue;        
+            GUI.backgroundColor = Color.blue;
         else
             GUI.backgroundColor = Color.grey;
 
@@ -188,7 +185,7 @@ public class Pixito : EditorWindow
         #region eyedropper
 
         if (isDrawing == false && isErasing == false && isEyedropperActive == true)
-            GUI.backgroundColor = Color.blue;       
+            GUI.backgroundColor = Color.blue;
         else
             GUI.backgroundColor = Color.grey;
 
@@ -230,9 +227,9 @@ public class Pixito : EditorWindow
     private void ClearCanvas()
     {
         pixels = new Color32[canvasWidth * canvasHeight];
-        for (int i = 0; i < pixels.Length; i++)        
+        for (int i = 0; i < pixels.Length; i++)
             pixels[i] = Color.clear;
-        
+
         canvas.SetPixels32(pixels);
         canvas.Apply();
         GUI.changed = true;
@@ -241,9 +238,9 @@ public class Pixito : EditorWindow
     {
         string folderNamePath = "Assets/Pixito";
 
-        if (!AssetDatabase.IsValidFolder(folderNamePath))        
+        if (!AssetDatabase.IsValidFolder(folderNamePath))
             AssetDatabase.CreateFolder("Assets", "Pixito");
-        
+
         string baseFileName = "Pixito";
         string fileName = SetSavedFileName(folderNamePath, baseFileName, "png");
         string filePath = Path.Combine(folderNamePath, fileName);
