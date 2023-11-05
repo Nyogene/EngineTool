@@ -12,6 +12,7 @@ public class Pixito : EditorWindow
     private bool isErasing = false;
     private bool isEyedropperActive = false;
     private bool isManualDisplayed = false;
+    private bool isClearRequestDisplayed = false;
 
     private int canvasWidth = 32;
     private int canvasHeight = 32;
@@ -25,6 +26,10 @@ public class Pixito : EditorWindow
         "\nClear            -> Clear the canvas." +
         "\nColor Picker     -> Pick a brush color." +
         "\nSave             -> Save your pixel art image with the optimal settings for pixel art";
+    #endregion
+
+    #region clear
+    private string clearText = "Do you want to clear the canvas? This process will delete all pixels on the canvas.";
     #endregion
 
     [MenuItem("Tools/Pixito")]
@@ -46,6 +51,7 @@ public class Pixito : EditorWindow
     {
         Event e = Event.current;
 
+        // Define min- maxSize of the Window so it can't be changed in size
         minSize = new Vector2(640, 640);
         maxSize = new Vector2(640, 640);
         Rect canvasRect = CalculateCanvasRect();
@@ -54,13 +60,16 @@ public class Pixito : EditorWindow
 
         DrawBackgrounds(canvasRect, toolRect);
 
-        if (!isManualDisplayed)
+        // Handle Text Displays from the Clear- and ManualButton
+        if (!isManualDisplayed && !isClearRequestDisplayed)
         {
             SwitchMouseEvents(e, canvasRect, mouseY);
             DrawGrid(canvasRect);
         }
-        else
+        else if (isManualDisplayed)
             GUI.Label(new Rect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height), manualText, GUI.skin.textArea);
+        else if (isClearRequestDisplayed)
+            GUI.Label(new Rect(canvasRect.x, canvasRect.y, canvasRect.width, canvasRect.height), clearText, GUI.skin.textArea);
 
         ShowUI(canvasRect);
     }
@@ -102,13 +111,10 @@ public class Pixito : EditorWindow
 
         if (canvasRect.Contains(e.mousePosition))
         {
-            Color32[] previousPixels = (Color32[])pixels.Clone();
-
             if (isErasing)
                 pixels[index] = Color.clear;
             else if (isDrawing)
                 pixels[index] = selectedColor;
-
             canvas.SetPixels32(pixels);
             canvas.Apply();
             GUI.changed = true;
@@ -202,7 +208,8 @@ public class Pixito : EditorWindow
 
         if (GUI.Button(new Rect(10, (position.height / 2) - 5, 55, 55), "Clear"))
         {
-            ClearCanvas();
+            isClearRequestDisplayed = true;
+            isDrawing = false;
         }
 
         if (GUI.Button(new Rect(10, (position.height / 2) + 60, 55, 55), "Manual"))
@@ -216,6 +223,20 @@ public class Pixito : EditorWindow
             SavePixelArt();
         }
 
+        if (isClearRequestDisplayed == true)
+        {
+            if (GUI.Button(new Rect((position.width / 2) + 50, (position.height / 2) + 270, 80, 20), "Close"))
+            {
+                isClearRequestDisplayed = false;
+            }
+
+            if (GUI.Button(new Rect((position.width / 2) - 50, (position.height / 2) + 270, 80, 20), "Accept"))
+            {
+                ClearCanvas();
+                isClearRequestDisplayed = false;
+            }
+        }
+
         if (isManualDisplayed == true)
         {
             if (GUI.Button(new Rect((position.width / 2), (position.height / 2) + 270, 80, 20), "Close"))
@@ -226,7 +247,7 @@ public class Pixito : EditorWindow
     }
     private void ClearCanvas()
     {
-        pixels = new Color32[canvasWidth * canvasHeight];
+        
         for (int i = 0; i < pixels.Length; i++)
             pixels[i] = Color.clear;
 
@@ -236,11 +257,13 @@ public class Pixito : EditorWindow
     }
     private void SavePixelArt()
     {
+        // Create the Folder for Pixel Art
         string folderNamePath = "Assets/Pixito";
 
         if (!AssetDatabase.IsValidFolder(folderNamePath))
             AssetDatabase.CreateFolder("Assets", "Pixito");
 
+        // Create unique FileName for Pixel Art
         string baseFileName = "Pixito";
         string fileName = SetSavedFileName(folderNamePath, baseFileName, "png");
         string filePath = Path.Combine(folderNamePath, fileName);
@@ -254,6 +277,7 @@ public class Pixito : EditorWindow
         File.WriteAllBytes(filePath, pngBytes);
         AssetDatabase.ImportAsset(filePath, ImportAssetOptions.ForceUpdate);
 
+        // Set Texture Import Settings
         TextureImporter textureImporter = (TextureImporter)AssetImporter.GetAtPath(filePath);
         textureImporter.textureType = TextureImporterType.Sprite;
         textureImporter.filterMode = FilterMode.Point;
